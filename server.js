@@ -18,21 +18,62 @@ mongoose.connect(process.env.URI, {
 app.get('/', (req, res) => {
   res.send('Hello World!');
 });
+app.put('/api/move-task', async (req, res) => {
+  try {
+    const { fromDayId, taskId, toDayId } = req.body;
+    if (!fromDayId || !taskId || !toDayId) {
+      return res.status(400).json({ error: 'fromDayId, taskId, and toDayId are required' });
+    }
+
+    // מצא את היום המקורי
+    const fromDay = await Day.findById(fromDayId);
+    if (!fromDay) {
+      return res.status(404).json({ error: 'Source day not found' });
+    }
+
+    // מצא את המשימה
+    const task = fromDay.tasks.id(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found in source day' });
+    }
+
+    // מצא את היום היעד
+    let toDay = await Day.findById(toDayId);
+    if (!toDay) {
+      return res.status(404).json({ error: 'Target day not found' });
+    }
+
+    // הוסף את המשימה ליום היעד
+    toDay.tasks.push({
+      title: task.title,
+      description: task.description,
+      completed: task.completed
+    });
+
+    // מחק את המשימה מהיום המקורי
+    task.remove();
+
+    await fromDay.save();
+    await toDay.save();
+
+    res.status(200).json({ message: 'Task moved successfully', fromDay, toDay });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.post('/api/add-task', async (req, res) => {
   try {
-    const {title, description } = req.body;
-    // if (!description) {
-    //   return res.status(400).json({ error: 'description is required' });
-    // }
+    const { title, description, date } = req.body;
 
-    const now = new Date();
-    let targetDate = new Date();
-    targetDate.setHours(0, 0, 0, 0);
-
-    // אם השעה בין 00:00 ל-06:00, הוסף למחר
-    // if (now.getHours() >= 0 && now.getHours() < 6) {
-    //   targetDate.setDate(targetDate.getDate() + 1);
-    // }
+    // קבע תאריך יעד: אם לא התקבל תאריך, השתמש בתאריך של היום
+    let targetDate;
+    if (date) {
+      targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+    } else {
+      targetDate = new Date();
+      targetDate.setHours(0, 0, 0, 0);
+    }
 
     // מצא או צור את היום המתאים
     let day = await Day.findOne({ date: targetDate });
@@ -45,7 +86,7 @@ app.post('/api/add-task', async (req, res) => {
     }
 
     day.tasks.push({
-      title:title,
+      title: title,
       description: description
     });
     await day.save();
