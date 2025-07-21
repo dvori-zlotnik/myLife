@@ -217,6 +217,82 @@ app.put('/api/update-day', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.get('/api/notes/:dayNumber', async (req, res) => {
+  try {
+    const dayNumber = parseInt(req.params.dayNumber, 10);
+    if (isNaN(dayNumber)) {
+      return res.status(400).json({ error: 'dayNumber must be a number' });
+    }
+
+    // מוצא את כל הימים, ממיין לפי תאריך עולה
+    const days = await Day.find().sort({ date: 1 });
+
+    // בודק אם היום המבוקש קיים
+    if (dayNumber < 1 || dayNumber > days.length) {
+      return res.status(404).json({ error: 'Day not found' });
+    }
+
+    // מוציא את ההערות של היום המבוקש (המערך מתחיל מ-0)
+    const notes = days[dayNumber - 1].notes
+      ? days[dayNumber - 1].notes.split('\n')
+      : [];
+
+    res.status(200).json(notes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// סימון מטלה ב-dvorush כבוצעה
+app.put('/api/dvorush/complete', async (req, res) => {
+  try {
+    const { dayId, taskId, completed } = req.body;
+    if (!dayId || !taskId) {
+      return res.status(400).json({ error: 'dayId and taskId are required' });
+    }
+    const day = await Day.findById(dayId);
+    if (!day) {
+      return res.status(404).json({ error: 'Day not found' });
+    }
+    const task = day.dvorush.id(taskId);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found in dvorush' });
+    }
+    if (typeof completed === 'boolean') {
+      task.completed = completed;
+    } else {
+      task.completed = true;
+    }
+    await day.save();
+    res.status(200).json(task);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// הוספת מטלה חדשה ל-dvorush
+app.post('/api/dvorush/add', async (req, res) => {
+  try {
+    const { dayId, title, description } = req.body;
+    if (!dayId || !title) {
+      return res.status(400).json({ error: 'dayId and title are required' });
+    }
+    const day = await Day.findById(dayId);
+    if (!day) {
+      return res.status(404).json({ error: 'Day not found' });
+    }
+    day.dvorush.push({
+      title,
+      description: description || '',
+      completed: false
+    });
+    await day.save();
+    res.status(201).json(day.dvorush[day.dvorush.length - 1]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
