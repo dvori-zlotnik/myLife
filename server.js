@@ -184,12 +184,14 @@ app.delete('/api/delete-task', async (req, res) => {
       return res.status(404).json({ error: 'Day not found' });
     }
 
-    const task = day.tasks.id(taskId);
-    if (!task) {
+    // מצא את האינדקס של המשימה במערך
+    const taskIndex = day.tasks.findIndex(t => t._id.toString() === taskId);
+    if (taskIndex === -1) {
       return res.status(404).json({ error: 'Task not found' });
     }
 
-    task.remove();
+    // הסר את המשימה מהמערך
+    day.tasks.splice(taskIndex, 1);
     await day.save();
 
     res.status(200).json({ message: 'Task deleted successfully', day });
